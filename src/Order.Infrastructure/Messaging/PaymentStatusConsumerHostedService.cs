@@ -34,6 +34,7 @@ public class PaymentStatusConsumerHostedService : BackgroundService
         var factory = new ConnectionFactory
         {
             HostName = _options.Host,
+            Port = _options.Port,
             UserName = _options.User,
             Password = _options.Pass,
             DispatchConsumersAsync = true
@@ -136,8 +137,24 @@ public class PaymentStatusConsumerHostedService : BackgroundService
 
     public override Task StopAsync(CancellationToken cancellationToken)
     {
-        _channel?.Close();
-        _connection?.Close();
+        try
+        {
+            _channel?.Close();
+        }
+        catch (Exception)
+        {
+            // Best-effort shutdown: channel may already be closed.
+        }
+
+        try
+        {
+            _connection?.Close();
+        }
+        catch (Exception)
+        {
+            // Best-effort shutdown: connection may already be closed.
+        }
+
         return base.StopAsync(cancellationToken);
     }
 }

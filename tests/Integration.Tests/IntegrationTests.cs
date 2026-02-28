@@ -1,38 +1,32 @@
-﻿using System.Net.Http.Json;
-using DotNet.Testcontainers.Builders;
-using DotNet.Testcontainers.Configurations;
-using DotNet.Testcontainers.Containers;
+extern alias paymentconsumer;
+
+using System.Net.Http.Json;
 using FluentAssertions;
 using Messaging.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Order.Application.Models;
 using Order.Infrastructure;
+using Testcontainers.MsSql;
+using Testcontainers.RabbitMq;
 
 namespace Integration.Tests;
 
 public class IntegrationTests : IAsyncLifetime
 {
-    private readonly MsSqlTestcontainer _sql;
-    private readonly RabbitMqTestcontainer _rabbit;
+    private readonly MsSqlContainer _sql;
+    private readonly RabbitMqContainer _rabbit;
     private ApiFactory? _factory;
 
     public IntegrationTests()
     {
-        _sql = new TestcontainersBuilder<MsSqlTestcontainer>()
-            .WithDatabase(new MsSqlTestcontainerConfiguration
-            {
-                Password = "Your_password123"
-            })
-            .WithPortBinding(14340, 1433)
+        _sql = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest")
+            .WithPassword("Your_password123")
             .Build();
 
-        _rabbit = new TestcontainersBuilder<RabbitMqTestcontainer>()
-            .WithMessageBroker(new RabbitMqTestcontainerConfiguration
-            {
-                Username = "guest",
-                Password = "guest"
-            })
-            .WithPortBinding(56740, 5672)
+        _rabbit = new RabbitMqBuilder("rabbitmq:3.13-management")
+            .WithUsername("guest")
+            .WithPassword("guest")
             .Build();
     }
 
@@ -40,7 +34,7 @@ public class IntegrationTests : IAsyncLifetime
     {
         await _sql.StartAsync().ConfigureAwait(false);
         await _rabbit.StartAsync().ConfigureAwait(false);
-        _factory = new ApiFactory(_sql.ConnectionString, _rabbit.Hostname);
+        _factory = new ApiFactory(_sql.GetConnectionString(), _rabbit.Hostname, _rabbit.GetMappedPublicPort(5672));
     }
 
     public async Task DisposeAsync()
@@ -65,8 +59,8 @@ public class IntegrationTests : IAsyncLifetime
              note = "no onions"
         }).ConfigureAwait(false);
 
-        var created = await orderResponse.Content.ReadFromJsonAsync<dynamic>().ConfigureAwait(false);
-        var orderId = Guid.Parse((string)created!.orderId.ToString());
+        var created = await orderResponse.Content.ReadFromJsonAsync<OrderResponse>().ConfigureAwait(false);
+        var orderId = created!.OrderId;
 
         var headers = new Dictionary<string, string> { { "Idempotency-Key", "abc123" } };
         var payment1 = await PostPaymentAsync(client, orderId, headers).ConfigureAwait(false);
@@ -90,8 +84,8 @@ public class IntegrationTests : IAsyncLifetime
              storeId = "store-2",
              items = new[] { new { sku = "pizza", qty = 2, price = 12.50m } }
         }).ConfigureAwait(false);
-        var created = await orderResponse.Content.ReadFromJsonAsync<dynamic>().ConfigureAwait(false);
-        var orderId = Guid.Parse((string)created!.orderId.ToString());
+        var created = await orderResponse.Content.ReadFromJsonAsync<OrderResponse>().ConfigureAwait(false);
+        var orderId = created!.OrderId;
 
         var headers = new Dictionary<string, string> { { "Idempotency-Key", "xyz789" } };
         await PostPaymentAsync(client, orderId, headers).ConfigureAwait(false);
@@ -129,6 +123,7 @@ public class IntegrationTests : IAsyncLifetime
         var factory = new ConnectionFactory
         {
             HostName = _rabbit.Hostname,
+            Port = _rabbit.GetMappedPublicPort(5672),
             DispatchConsumersAsync = true
         };
         using var connection = factory.CreateConnection();
@@ -147,13 +142,15 @@ public class IntegrationTests : IAsyncLifetime
         channel.BasicPublish("fnb.events", "payment.requested.v1", props, body);
 
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var processor = new Payment.Consumer.BoundedChannelProcessor<global::RabbitMQ.Client.Events.BasicDeliverEventArgs>(
+        var processor = new paymentconsumer::Payment.Consumer.BoundedChannelProcessor<global::RabbitMQ.Client.Events.BasicDeliverEventArgs>(
             1, 2, (_, _) => Task.CompletedTask, cts.Token);
 
         using var scope = _factory!.Services.GetRequiredService<IServiceScopeFactory>().CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
-        db.InboxMessages.Add(new Order.Infrastructure.Entities.InboxMessage { MessageId = messageId, Consumer = "test", ReceivedOn = DateTime.UtcNow });
+        var existing = new Order.Infrastructure.Entities.InboxMessage { MessageId = messageId, Consumer = "test", ReceivedOn = DateTime.UtcNow };
+        db.InboxMessages.Add(existing);
         await db.SaveChangesAsync().ConfigureAwait(false);
+        db.Entry(existing).State = EntityState.Detached;
 
         var duplicate = new Order.Infrastructure.Entities.InboxMessage { MessageId = messageId, Consumer = "test", ReceivedOn = DateTime.UtcNow };
         await db.InboxMessages.AddAsync(duplicate).ConfigureAwait(false);
@@ -173,7 +170,8 @@ public class IntegrationTests : IAsyncLifetime
         request.Headers.Add("Idempotency-Key", headers["Idempotency-Key"]);
         var response = await client.SendAsync(request).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
-        var payment = await response.Content.ReadFromJsonAsync<dynamic>().ConfigureAwait(false);
-        return (Guid.Parse((string)payment!.paymentId.ToString()), (string)payment.status.ToString());
+        var payment = await response.Content.ReadFromJsonAsync<PaymentResponse>().ConfigureAwait(false);
+        return (payment!.PaymentId, payment.Status.ToString());
     }
 }
+

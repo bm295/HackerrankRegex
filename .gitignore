@@ -1,4 +1,4 @@
-﻿bin/
+bin/
 obj/
 *.user
 *.suo
@@ -9,3 +9,25 @@ TestResults/
 *.ide
 *.log
 *.db
+
+# IDE / editor
+.vscode/
+.idea/
+*.rsuser
+*.DotSettings.user
+
+# OS / temp
+Thumbs.db
+*.tmp
+*.temp
+
+# Test / coverage artifacts
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+coveragereport/
+
+# Local environment files
+.env
+.env.*

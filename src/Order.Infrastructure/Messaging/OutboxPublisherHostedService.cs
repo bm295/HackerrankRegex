@@ -31,6 +31,7 @@ public class OutboxPublisherHostedService : BackgroundService
         var factory = new ConnectionFactory
         {
             HostName = _rabbitOptions.Host,
+            Port = _rabbitOptions.Port,
             UserName = _rabbitOptions.User,
             Password = _rabbitOptions.Pass,
             DispatchConsumersAsync = true
@@ -94,8 +95,19 @@ public class OutboxPublisherHostedService : BackgroundService
 
     public override Task StopAsync(CancellationToken cancellationToken)
     {
-        _connection?.Close();
-        _connection?.Dispose();
+        try
+        {
+            _connection?.Close();
+        }
+        catch (Exception)
+        {
+            // Best-effort shutdown: connection may already be closed during host stop.
+        }
+        finally
+        {
+            _connection?.Dispose();
+        }
+
         return base.StopAsync(cancellationToken);
     }
 }

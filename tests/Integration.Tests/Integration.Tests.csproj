@@ -1,20 +1,21 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>false</IsPackable>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="FluentAssertions" Version="6.12.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.0" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.0" />
     <PackageReference Include="xunit" Version="2.5.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.0" />
-    <PackageReference Include="DotNet.Testcontainers" Version="1.7.0-beta.2269" />
+    <PackageReference Include="Testcontainers.MsSql" Version="4.10.0" />
+    <PackageReference Include="Testcontainers.RabbitMq" Version="4.10.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Order.Api\Order.Api.csproj" />
     <ProjectReference Include="..\..\src\Order.Infrastructure\Order.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Order.Application\Order.Application.csproj" />
-    <ProjectReference Include="..\..\src\Payment.Consumer\Payment.Consumer.csproj" />
+    <ProjectReference Include="..\..\src\Payment.Consumer\Payment.Consumer.csproj" Aliases="paymentconsumer" />
   </ItemGroup>
 </Project>

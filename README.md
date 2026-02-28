@@ -1,48 +1,65 @@
-﻿# AsyncAwaitFnbOnPrem
+# AsyncAwaitFnbOnPrem
 
-## Tooling prerequisites
-- [.NET 8 SDK](https://dotnet.microsoft.com) (runtime too, if running projects manually)
-- Docker Desktop or equivalent Docker Engine (Testcontainers, RabbitMQ + SQL Server depend on it)
-- [`dotnet-ef`](https://learn.microsoft.com/ef/core/cli/dotnet) (installed globally to run migrations if needed)
+## Prerequisites
+- [.NET 10 SDK](https://dotnet.microsoft.com) (repo pins SDK in `global.json`)
+- Docker Desktop (or compatible Docker Engine)
+- Optional for manual migrations: [`dotnet-ef`](https://learn.microsoft.com/ef/core/cli/dotnet)
 
-## Configuration
-1. Copy `.env` or set environment variables if you need to override defaults (see `appsettings.json` in each project). Defaults use:
-   - SQL Server: `Server=localhost,14333;Database=AsyncAwaitFnb;User Id=sa;Password=Your_password123;TrustServerCertificate=True`
-   - RabbitMQ: `localhost`, `guest` credentials, `fnb.events` exchange.
-2. `Order.Api`, `Payment.Consumer`, and `Kitchen.Consumer` load `appsettings.json`; you can override via environment variables (e.g., `RabbitMQ__Host`).
-3. Ensure `scripts/dev-up.*` is adjusted if you change ports or credentials.
+Default local infrastructure values:
+- SQL Server: `Server=localhost,14333;Database=AsyncAwaitFnb;User Id=sa;Password=Your_password123;TrustServerCertificate=True`
+- RabbitMQ: host `localhost`, user `guest`, password `guest`, exchange `fnb.events`
 
-## Environment setup
-1. Start the required infrastructure:
+## First-Time Setup (Install + Verify)
+1. Clone the repository and open a terminal in the repo root.
+2. Confirm tool versions:
    ```bash
-   ./scripts/dev-up.sh     # or scripts/dev-up.ps1
+   dotnet --version
+   docker --version
    ```
-2. Wait for Docker to report `rabbitmq` and `sqlserver` as healthy (check `docker compose ps` or visit RabbitMQ on `http://localhost:15672`).
-3. (Optional) Use `dotnet ef database update --project src/Order.Infrastructure` to preseed schemas—`Order.Api` already migrates at startup in Development.
-
-## Building the solution
-1. Restore & build everything:
+3. Start infrastructure containers:
    ```bash
+   # Linux/macOS
+   ./scripts/dev-up.sh
+
+   # Windows PowerShell
+   ./scripts/dev-up.ps1
+   ```
+4. Wait until both services are healthy:
+   ```bash
+   docker compose ps
+   ```
+5. Restore and build:
+   ```bash
+   dotnet restore AsyncAwaitFnbOnPrem.sln
    dotnet build AsyncAwaitFnbOnPrem.sln
    ```
-2. Run all tests (integration suite needs Docker):
+6. Optional validation tests:
    ```bash
    dotnet test AsyncAwaitFnbOnPrem.sln
    ```
 
-## Running services
-1. Launch `Order.Api`:
+## Next Runs (After Initial Setup)
+1. Start infrastructure:
    ```bash
-   cd src/Order.Api
-   dotnet run
+   ./scripts/dev-up.sh      # or ./scripts/dev-up.ps1
    ```
-2. Launch consumers (prefer separate terminals):
+2. Run services in separate terminals:
    ```bash
-   cd src/Payment.Consumer && dotnet run
-   cd src/Kitchen.Consumer && dotnet run
+   dotnet run --project src/Order.Api/Order.Api.csproj
+   dotnet run --project src/Payment.Consumer/Payment.Consumer.csproj
+   dotnet run --project src/Kitchen.Consumer/Kitchen.Consumer.csproj
    ```
-3. Monitor logs; API has OpenAPI UI on `/swagger` when running in Development.
+3. Open API Swagger:
+   - `http://localhost:5000/swagger`
+4. When finished, stop infrastructure:
+   ```bash
+   ./scripts/dev-down.sh    # or ./scripts/dev-down.ps1
+   ```
 
-## Notes
-- Use `ConnectionStrings:SqlServer` and `RabbitMQ` sections for overrides (environment variables support `:` notation).
-- Integration tests depend on Docker; ensure Docker named pipe/daemon is accessible before running them.
+## Configuration Overrides
+- Services read `appsettings.json` + environment variables.
+- Common overrides:
+  - `ConnectionStrings__SqlServer`
+  - `RabbitMQ__Host`
+  - `RabbitMQ__Username`
+  - `RabbitMQ__Password`

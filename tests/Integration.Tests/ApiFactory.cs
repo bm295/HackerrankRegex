@@ -13,11 +13,13 @@ public class ApiFactory : WebApplicationFactory<Program>
 {
     private readonly string _connectionString;
     private readonly string _rabbitHost;
+    private readonly int _rabbitPort;
 
-    public ApiFactory(string connectionString, string rabbitHost)
+    public ApiFactory(string connectionString, string rabbitHost, int rabbitPort)
     {
         _connectionString = connectionString;
         _rabbitHost = rabbitHost;
+        _rabbitPort = rabbitPort;
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -27,7 +29,8 @@ public class ApiFactory : WebApplicationFactory<Program>
             var dict = new Dictionary<string, string?>
             {
                 ["ConnectionStrings:SqlServer"] = _connectionString,
-                ["RabbitMQ:Host"] = _rabbitHost
+                ["RabbitMQ:Host"] = _rabbitHost,
+                ["RabbitMQ:Port"] = _rabbitPort.ToString()
             };
             config.AddInMemoryCollection(dict!);
         });
